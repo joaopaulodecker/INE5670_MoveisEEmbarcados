@@ -1,0 +1,10 @@
+{
+  "name": "api-gateway",
+  "version": "1.0.0",
+  "description": "Backend smart lockers - INE5670 UFSC",
+  "main": "api-gateway.js",
+  "scripts": {
+    "start": "node api-gateway.js"
+  },
+  "dependencies": { "express": "^4.19.2", "express-http-proxy": "^2.1.1", "morgan": "^1.10.0" }
+}

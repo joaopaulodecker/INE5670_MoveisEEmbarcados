@@ -1,0 +1,6 @@
+
+> condominos-service@1.0.0 start
+> node condominos-service.js
+
+[condominos] Servico em execucao na porta 8082
+[condominos] Conectado ao SQLite.

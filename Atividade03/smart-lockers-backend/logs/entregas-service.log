@@ -1,0 +1,6 @@
+
+> entregas-service@1.0.0 start
+> node entregas-service.js
+
+[entregas] Servico em execucao na porta 8083
+[entregas] Conectado ao SQLite.

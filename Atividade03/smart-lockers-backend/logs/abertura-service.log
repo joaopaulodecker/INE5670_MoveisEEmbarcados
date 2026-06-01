@@ -1,0 +1,5 @@
+
+> abertura-service@1.0.0 start
+> node abertura-service.js
+
+[abertura] Servico em execucao na porta 8085

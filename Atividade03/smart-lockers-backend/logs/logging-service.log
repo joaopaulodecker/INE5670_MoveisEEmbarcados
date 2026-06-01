@@ -1,0 +1,6 @@
+
+> logging-service@1.0.0 start
+> node logging-service.js
+
+[logging] Servico em execucao na porta 8084
+[logging] Conectado ao SQLite.

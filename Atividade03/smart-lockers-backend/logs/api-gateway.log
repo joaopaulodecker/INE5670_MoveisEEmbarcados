@@ -1,0 +1,6 @@
+
+> api-gateway@1.0.0 start
+> node api-gateway.js
+
+API Gateway em execucao na porta 8000.
+[0mPOST /lockers [32m201[0m 37.591 ms - 57[0m

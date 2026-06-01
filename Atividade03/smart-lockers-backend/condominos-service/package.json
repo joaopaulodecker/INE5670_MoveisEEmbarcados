@@ -1,0 +1,10 @@
+{
+  "name": "condominos-service",
+  "version": "1.0.0",
+  "description": "Backend smart lockers - INE5670 UFSC",
+  "main": "condominos-service.js",
+  "scripts": {
+    "start": "node condominos-service.js"
+  },
+  "dependencies": { "express": "^4.19.2", "body-parser": "^1.20.2", "sqlite3": "^5.1.7" }
+}

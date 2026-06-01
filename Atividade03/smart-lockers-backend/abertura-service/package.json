@@ -1,0 +1,10 @@
+{
+  "name": "abertura-service",
+  "version": "1.0.0",
+  "description": "Backend smart lockers - INE5670 UFSC",
+  "main": "abertura-service.js",
+  "scripts": {
+    "start": "node abertura-service.js"
+  },
+  "dependencies": { "express": "^4.19.2", "body-parser": "^1.20.2" }
+}

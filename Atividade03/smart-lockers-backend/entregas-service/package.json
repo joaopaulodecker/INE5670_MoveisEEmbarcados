@@ -1,0 +1,10 @@
+{
+  "name": "entregas-service",
+  "version": "1.0.0",
+  "description": "Backend smart lockers - INE5670 UFSC",
+  "main": "entregas-service.js",
+  "scripts": {
+    "start": "node entregas-service.js"
+  },
+  "dependencies": { "express": "^4.19.2", "body-parser": "^1.20.2", "sqlite3": "^5.1.7", "axios": "^1.7.2" }
+}

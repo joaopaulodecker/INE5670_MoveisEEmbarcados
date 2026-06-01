@@ -1,0 +1,5 @@
+# Dependencias instaladas
+node_modules/
+
+# Bancos de dados gerados em tempo de execucao
+*.db
