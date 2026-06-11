@@ -1,18 +1,14 @@
-// ============================================================
-//  Microservice: Cadastro de Condominos
-//  Pessoas que tem acesso a um determinado locker.
-//  Banco de dados proprio: condominos.db
-// ============================================================
-
 const express = require('express');
 const bodyParser = require('body-parser');
 const sqlite3 = require('sqlite3');
+const axios = require('axios');
 
 const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 const PORTA = 8082;
+const LOCKERS_SERVICE = 'http://localhost:8081';
 
 const db = new sqlite3.Database('./condominos.db', (err) => {
   if (err) throw err;
@@ -26,54 +22,89 @@ db.run(`CREATE TABLE IF NOT EXISTS condominos (
           unidade TEXT,
           locker_id INTEGER NOT NULL)`);
 
-// Cadastra um condomino (usado pelo administrador)
-app.post('/condominos', (req, res) => {
+app.post('/condominos', async (req, res) => {
   const { nome, contato, unidade, locker_id } = req.body;
-  db.run(`INSERT INTO condominos (nome, contato, unidade, locker_id) VALUES (?, ?, ?, ?)`,
-    [nome, contato, unidade, locker_id], function (err) {
-      if (err) return res.status(500).send('Erro ao cadastrar condomino.');
-      res.status(201).json({ id: this.lastID, nome, contato, unidade, locker_id });
-    });
+
+  if (!nome || !locker_id) {
+    return res.status(400).json({ error: 'nome e locker_id sao obrigatorios' });
+  }
+
+  if (!Number.isInteger(locker_id) || locker_id <= 0) {
+    return res.status(400).json({ error: 'locker_id invalido' });
+  }
+
+  try {
+    const locker = await axios.get(`${LOCKERS_SERVICE}/lockers/${locker_id}`);
+
+    if (!locker.data) {
+      return res.status(400).json({ error: 'locker nao existe' });
+    }
+
+    db.run(
+      `INSERT INTO condominos (nome, contato, unidade, locker_id) VALUES (?, ?, ?, ?)`,
+      [nome, contato, unidade, locker_id],
+      function (err) {
+        if (err) return res.status(500).json({ error: 'Erro ao cadastrar condomino' });
+
+        res.status(201).json({
+          id: this.lastID,
+          nome,
+          contato,
+          unidade,
+          locker_id
+        });
+      }
+    );
+
+  } catch (e) {
+    return res.status(502).json({ error: 'erro ao validar locker em outro microservice' });
+  }
 });
 
-// Lista todos os condominos
 app.get('/condominos', (req, res) => {
   db.all(`SELECT * FROM condominos`, [], (err, rows) => {
-    if (err) return res.status(500).send('Erro ao obter condominos.');
+    if (err) return res.status(500).json({ error: 'Erro ao obter condominos' });
     res.status(200).json(rows);
   });
 });
 
-// Busca um condomino pelo id (usado pelo servico de Entregas para validar)
 app.get('/condominos/:id', (req, res) => {
   db.get(`SELECT * FROM condominos WHERE id = ?`, [req.params.id], (err, row) => {
-    if (err) return res.status(500).send('Erro ao obter condomino.');
-    if (!row) return res.status(404).send('Condomino nao encontrado.');
+    if (err) return res.status(500).json({ error: 'Erro ao obter condomino' });
+    if (!row) return res.status(404).json({ error: 'Condomino nao encontrado' });
     res.status(200).json(row);
   });
 });
 
-// Altera os dados de um condomino
 app.patch('/condominos/:id', (req, res) => {
   const { nome, contato, unidade } = req.body;
-  db.run(`UPDATE condominos
-            SET nome = COALESCE(?, nome),
-                contato = COALESCE(?, contato),
-                unidade = COALESCE(?, unidade)
-            WHERE id = ?`,
-    [nome, contato, unidade, req.params.id], function (err) {
-      if (err) return res.status(500).send('Erro ao alterar condomino.');
-      if (this.changes === 0) return res.status(404).send('Condomino nao encontrado.');
-      res.status(200).send('Condomino alterado com sucesso!');
-    });
+
+  if (!nome && !contato && !unidade) {
+    return res.status(400).json({ error: 'nenhum dado informado' });
+  }
+
+  db.run(
+    `UPDATE condominos
+     SET nome = COALESCE(?, nome),
+         contato = COALESCE(?, contato),
+         unidade = COALESCE(?, unidade)
+     WHERE id = ?`,
+    [nome, contato, unidade, req.params.id],
+    function (err) {
+      if (err) return res.status(500).json({ error: 'Erro ao alterar condomino' });
+      if (this.changes === 0) return res.status(404).json({ error: 'Condomino nao encontrado' });
+
+      res.status(200).json({ message: 'Condomino alterado com sucesso' });
+    }
+  );
 });
 
-// Remove um condomino
 app.delete('/condominos/:id', (req, res) => {
   db.run(`DELETE FROM condominos WHERE id = ?`, [req.params.id], function (err) {
-    if (err) return res.status(500).send('Erro ao remover condomino.');
-    if (this.changes === 0) return res.status(404).send('Condomino nao encontrado.');
-    res.status(200).send('Condomino removido com sucesso!');
+    if (err) return res.status(500).json({ error: 'Erro ao remover condomino' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Condomino nao encontrado' });
+
+    res.status(200).json({ message: 'Condomino removido com sucesso' });
   });
 });
 

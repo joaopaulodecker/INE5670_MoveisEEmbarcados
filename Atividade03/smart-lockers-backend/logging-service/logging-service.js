@@ -1,9 +1,3 @@
-// ============================================================
-//  Microservice: Servico de Logging
-//  Mantem o historico de todas as entregas (armazenamento/retirada).
-//  Banco de dados proprio: logs.db
-// ============================================================
-
 const express = require('express');
 const bodyParser = require('body-parser');
 const sqlite3 = require('sqlite3');
@@ -20,27 +14,52 @@ const db = new sqlite3.Database('./logs.db', (err) => {
 });
 
 db.run(`CREATE TABLE IF NOT EXISTS logs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          entrega_id INTEGER,
-          evento TEXT NOT NULL,        -- armazenamento / retirada
-          detalhes TEXT,
-          data TEXT NOT NULL)`);
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  entrega_id INTEGER NOT NULL,
+  evento TEXT NOT NULL,
+  detalhes TEXT,
+  data TEXT NOT NULL
+)`);
 
-// Registra um evento no historico (chamado pelo servico de Entregas)
 app.post('/logs', (req, res) => {
   const { entrega_id, evento, detalhes } = req.body;
+
+  const eventosValidos = ['armazenamento', 'retirada'];
+
+  if (!entrega_id || !evento) {
+    return res.status(400).json({ error: 'entrega_id e evento sao obrigatorios' });
+  }
+
+  if (!Number.isInteger(entrega_id) || entrega_id <= 0) {
+    return res.status(400).json({ error: 'entrega_id invalido' });
+  }
+
+  if (!eventosValidos.includes(evento)) {
+    return res.status(400).json({ error: 'evento invalido. Use armazenamento ou retirada' });
+  }
+
   const data = new Date().toISOString();
-  db.run(`INSERT INTO logs (entrega_id, evento, detalhes, data) VALUES (?, ?, ?, ?)`,
-    [entrega_id, evento, detalhes, data], function (err) {
-      if (err) return res.status(500).send('Erro ao registrar log.');
-      res.status(201).json({ id: this.lastID, entrega_id, evento, detalhes, data });
-    });
+
+  db.run(
+    `INSERT INTO logs (entrega_id, evento, detalhes, data) VALUES (?, ?, ?, ?)`,
+    [entrega_id, evento, detalhes, data],
+    function (err) {
+      if (err) return res.status(500).json({ error: 'Erro ao registrar log' });
+
+      res.status(201).json({
+        id: this.lastID,
+        entrega_id,
+        evento,
+        detalhes,
+        data
+      });
+    }
+  );
 });
 
-// Consulta todo o historico (usado pelo administrador)
 app.get('/logs', (req, res) => {
   db.all(`SELECT * FROM logs ORDER BY id DESC`, [], (err, rows) => {
-    if (err) return res.status(500).send('Erro ao obter logs.');
+    if (err) return res.status(500).json({ error: 'Erro ao obter logs' });
     res.status(200).json(rows);
   });
 });
