@@ -1,159 +1,147 @@
+// ============================================================
+//  SISTEMA EMBARCADO - Projeto Final
+//  Placa: NodeMCU (ESP8266)
+//
+//  Sensor:  HC-SR04 (ultrassonico) -> mede a distancia
+//  Atuador: LED / buzzer            -> liga quando algo e detectado
+//
+//  O limite de distancia e lido do BACKEND (servico Controle).
+//  As leituras sao enviadas ao BACKEND (servico Logging).
+// ============================================================
+
 #include <ESP8266WiFi.h>
 
 const char* ssid = "NOME_DA_REDE";
 const char* senha = "SENHA_DA_REDE";
-
-const char* servidor = "192.168.0.100";
+const char* servidor = "192.168.0.100";  // IP do PC (so o numero, sem http://)
 const int porta = 3000;
 
 WiFiClient cliente;
 
 const int trigPin = D5;
 const int echoPin = D6;
-const int sinalizador = D7;
+const int sinalizador = D7;   // LED ou buzzer
 
 float distancia = 0;
-int distanciaLimite = 20;
+int distanciaLimite = 20;     // valor padrao; sera atualizado pelo backend
 
 unsigned long ultimaConfig = 0;
 unsigned long ultimoEnvio = 0;
 
 void conectarWiFi() {
-WiFi.mode(WIFI_STA);
-WiFi.begin(ssid, senha);
-
-Serial.print("Conectando");
-
-while (WiFi.status() != WL_CONNECTED) {
-delay(500);
-Serial.print(".");
-}
-
-Serial.println();
-Serial.print("IP: ");
-Serial.println(WiFi.localIP());
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, senha);
+  Serial.print("Conectando");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
 }
 
 float medirDistancia() {
-digitalWrite(trigPin, LOW);
-delayMicroseconds(2);
-
-digitalWrite(trigPin, HIGH);
-delayMicroseconds(10);
-
-digitalWrite(trigPin, LOW);
-
-long duracao = pulseIn(echoPin, HIGH, 30000);
-
-if (duracao == 0)
-return -1;
-
-return duracao * 0.0343 / 2.0;
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long duracao = pulseIn(echoPin, HIGH, 30000);
+  if (duracao == 0)
+    return -1;
+  return duracao * 0.0343 / 2.0;
 }
 
 void buscarConfig() {
-if (!cliente.connect(servidor, porta)) {
-Serial.println("Erro ao buscar configuração");
-return;
-}
+  if (!cliente.connect(servidor, porta)) {
+    Serial.println("Erro ao buscar configuracao");
+    return;
+  }
+  cliente.println("GET /config HTTP/1.1");
+  cliente.print("Host: ");
+  cliente.println(servidor);
+  cliente.println("Connection: close");
+  cliente.println();
 
-cliente.println("GET /config HTTP/1.1");
-cliente.print("Host: ");
-cliente.println(servidor);
-cliente.println("Connection: close");
-cliente.println();
+  String resposta = "";
+  while (cliente.connected() || cliente.available()) {
+    if (cliente.available()) {
+      resposta += (char)cliente.read();
+    }
+  }
+  cliente.stop();
 
-String resposta = "";
-
-while (cliente.connected() || cliente.available()) {
-if (cliente.available()) {
-resposta += (char)cliente.read();
-}
-}
-
-cliente.stop();
-
-int i = resposta.indexOf("distancia_limite");
-
-if (i >= 0) {
-int inicio = resposta.indexOf(':', i) + 1;
-int fim = resposta.indexOf('}', inicio);
-
-distanciaLimite = resposta.substring(inicio, fim).toInt();
-
-Serial.print("Novo limite: ");
-Serial.println(distanciaLimite);
-}
+  int i = resposta.indexOf("distancia_limite");
+  if (i >= 0) {
+    int inicio = resposta.indexOf(':', i) + 1;
+    int fim = resposta.indexOf('}', inicio);
+    distanciaLimite = resposta.substring(inicio, fim).toInt();
+    Serial.print("Novo limite: ");
+    Serial.println(distanciaLimite);
+  }
 }
 
 void enviarLeitura(float distancia, bool detectado) {
-if (!cliente.connect(servidor, porta)) {
-Serial.println("Erro ao enviar leitura");
-return;
-}
+  if (!cliente.connect(servidor, porta)) {
+    Serial.println("Erro ao enviar leitura");
+    return;
+  }
+  String json =
+    "{\"distancia\":" + String(distancia, 1) +
+    ",\"detectado\":" + String(detectado ? "true" : "false") +
+    "}";
+  cliente.println("POST /leituras HTTP/1.1");
+  cliente.print("Host: ");
+  cliente.println(servidor);
+  cliente.println("Content-Type: application/json");
+  cliente.print("Content-Length: ");
+  cliente.println(json.length());
+  cliente.println("Connection: close");
+  cliente.println();
+  cliente.print(json);
 
-String json =
-"{\"distancia\":" + String(distancia, 1) +
-",\"detectado\":" + String(detectado ? "true" : "false") +
-"}";
-
-cliente.println("POST /leituras HTTP/1.1");
-cliente.print("Host: ");
-cliente.println(servidor);
-cliente.println("Content-Type: application/json");
-cliente.print("Content-Length: ");
-cliente.println(json.length());
-cliente.println("Connection: close");
-cliente.println();
-
-cliente.print(json);
-
-while (cliente.connected() || cliente.available()) {
-while (cliente.available()) {
-cliente.read();
-}
-}
-
-cliente.stop();
-
-Serial.println("Leitura enviada");
+  while (cliente.connected() || cliente.available()) {
+    while (cliente.available()) {
+      cliente.read();
+    }
+  }
+  cliente.stop();
+  Serial.println("Leitura enviada");
 }
 
 void setup() {
-Serial.begin(115200);
+  Serial.begin(115200);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(sinalizador, OUTPUT);
 
-pinMode(trigPin, OUTPUT);
-pinMode(echoPin, INPUT);
-pinMode(sinalizador, OUTPUT);
+  conectarWiFi();   // <<< CORRIGIDO: sem esta chamada o WiFi nunca conectava
+  buscarConfig();   // pega a configuracao inicial ja de cara (nao espera 10s)
 }
 
 void loop() {
-distancia = medirDistancia();
+  distancia = medirDistancia();
+  bool detectado = false;
+  if (distancia >= 0) {
+    detectado = distancia < distanciaLimite;
+  }
+  digitalWrite(sinalizador, detectado);
 
-bool detectado = false;
+  Serial.print("Distancia: ");
+  Serial.print(distancia);
+  Serial.print(" cm | Limite: ");
+  Serial.print(distanciaLimite);
+  Serial.print(" | ");
+  Serial.println(detectado ? "DETECTADO" : "LIVRE");
 
-if (distancia >= 0) {
-detectado = distancia < distanciaLimite;
-}
-
-digitalWrite(sinalizador, detectado);
-
-Serial.print("Distancia: ");
-Serial.print(distancia);
-Serial.print(" cm | Limite: ");
-Serial.print(distanciaLimite);
-Serial.print(" | ");
-Serial.println(detectado ? "DETECTADO" : "LIVRE");
-
-if (millis() - ultimaConfig >= 10000) {
-buscarConfig();
-ultimaConfig = millis();
-}
-
-if (millis() - ultimoEnvio >= 5000) {
-enviarLeitura(distancia, detectado);
-ultimoEnvio = millis();
-}
-
-delay(300);
+  if (millis() - ultimaConfig >= 10000) {
+    buscarConfig();
+    ultimaConfig = millis();
+  }
+  if (millis() - ultimoEnvio >= 5000) {
+    enviarLeitura(distancia, detectado);
+    ultimoEnvio = millis();
+  }
+  delay(300);
 }
